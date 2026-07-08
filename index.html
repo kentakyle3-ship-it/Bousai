@@ -1,92 +1,81 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>AI災害予測 リアルタイム連動マップ</title>
-    <!-- 地図ライブラリ Leaflet -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        #map { height: 480px; width: 100%; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
-        .legend { background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); line-height: 1.5; }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
-        .control-panel { text-align: center; margin-bottom: 15px; font-family: sans-serif; }
-        .btn { padding: 10px 20px; margin: 0 5px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: white; }
-        .btn-danger { background-color: #ff4d4d; }
-        .btn-warning { background-color: #ffcc00; color: #333; }
-        .btn-success { background-color: #3388ff; }
-    </style>
-</head>
-<body>
+<script>
+    // 地図の初期設定
+    const map = L.map('map').setView([34.9717, 138.3888], 14);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>'
+    }).addTo(map);
 
-    <div class="control-panel">
-        <h3 style="color:#333; margin-bottom: 10px;">🚨 AI災害予測 リアルタイム連動デモ画面</h3>
-        <button class="btn btn-danger" onclick="updateMap(2, 95, 27, 8)">🔥 予測[2]: 危険データ送信</button>
-        <button class="btn btn-warning" onclick="updateMap(1, 45, 26, 12)">⚠️ 予測[1]: 注意データ送信</button>
-        <button class="btn btn-success" onclick="updateMap(0, 10, 22, 3)">🟢 予測[0]: 安全データ送信</button>
-    </div>
-    
-    <div id="map"></div>
+    let currentMarker = null;
 
-    <script>
-        const map = L.map('map').setView([34.9717, 138.3888], 14);
-        L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>'
+    function getColor(level) {
+        if (level === 2) return '#ff4d4d';
+        if (level === 1) return '#ffcc00';
+        return '#3388ff';
+    }
+
+    // 地図のピンを更新する関数
+    function updateMap(level, rainfall, temp, wind, timeStr) {
+        if (currentMarker) {
+            map.removeLayer(currentMarker);
+        }
+
+        currentMarker = L.circleMarker([34.9717, 138.3888], {
+            radius: 22,
+            fillColor: getColor(level),
+            color: '#fff',
+            weight: 3,
+            fillOpacity: 0.85
         }).addTo(map);
 
-        let currentMarker = null;
+        const levelTexts = [
+            '<b style="color:blue;">安全 (Level 0)</b>', 
+            '<b style="color:orange;">注意 (Level 1)</b>', 
+            '<b style="color:red;">危険 (Level 2)</b>'
+        ];
 
-        function getColor(level) {
-            if (level === 2) return '#ff4d4d';
-            if (level === 1) return '#ffcc00';
-            return '#3388ff';
+        currentMarker.bindPopup(`
+            <b style="font-size:1.1em;">静岡駅周辺エリア</b><br><br>
+            🤖 <b>AI予測危険度: ${levelTexts[level]}</b><br>
+            💧 降水量: ${rainfall} mm<br>
+            🌡️ 気温: ${temp} ℃<br>
+            🌀 風速: ${wind} m/s<br><br>
+            <small style="color:green;">⏱️ AI予測時刻: ${timeStr}</small><br>
+            <small style="color:gray;">状態: リアルタイムデータ自動取得 🟢</small>
+        `).openPopup();
+    }
+
+    // 🌟 JSONBinから最新のAI予測データを自動で取ってくる関数
+    async function loadLatestData() {
+        const BIN_ID = '6a4e0c4fda38895dfe3f4207';
+        const API_KEY = '$2a$10$2Gloi/T10XfC76Ca6vIQn.hIzvhlkUwSE3n0NtJ4GLl/yeNGL0dWi'; 
+        const url = `https://api.jsonbin.io/v3/b/${BIN_ID}/latest`;
+
+        try {
+            const response = await fetch(url, {
+                headers: { 'X-Master-Key': API_KEY }
+            });
+            const resData = await response.json();
+            const data = resData.record; // ここに保存したデータが入ってる
+
+            // 地図に最新データを反映！
+            updateMap(data.danger_level, data.rainfall, data.temperature, data.wind, data.updated_at);
+        } catch (error) {
+            console.error("データの読み込みに失敗しました:", error);
         }
+    }
 
-        function updateMap(level, rainfall, temp, wind) {
-            if (currentMarker) {
-                map.removeLayer(currentMarker);
-            }
+    // ページを開いた瞬間に自動実行
+    loadLatestData();
 
-            const now = new Date();
-            const timeStr = now.toLocaleDateString() + " " + now.toLocaleTimeString();
-
-            currentMarker = L.circleMarker([34.9717, 138.3888], {
-                radius: 22,
-                fillColor: getColor(level),
-                color: '#fff',
-                weight: 3,
-                fillOpacity: 0.85
-            }).addTo(map);
-
-            const levelTexts = [
-                '<b style="color:blue;">安全 (Level 0)</b>', 
-                '<b style="color:orange;">注意 (Level 1)</b>', 
-                '<b style="color:red;">危険 (Level 2)</b>'
-            ];
-
-            currentMarker.bindPopup(`
-                <b style="font-size:1.1em;">静岡駅周辺エリア</b><br><br>
-                🤖 <b>AI予測危険度: ${levelTexts[level]}</b><br>
-                💧 降水量: ${rainfall} mm<br>
-                🌡️ 気温: ${temp} ℃<br>
-                🌀 風速: ${wind} m/s<br><br>
-                <small style="color:green;">⏱️ リアルタイム受信時刻: ${timeStr}</small><br>
-                <small style="color:gray;">状態: AIモデルと完全連動中 🟢</small>
-            `).openPopup();
-        }
-
-        updateMap(2, 95, 27, 8);
-
-        const legend = L.control({ position: 'bottomright' });
-        legend.onAdd = function () {
-            const div = L.DomUtil.create('div', 'legend');
-            div.innerHTML += '<h4>危険度</h4>';
-            div.innerHTML += '<i style="background: #ff4d4d"></i> 危険 (Level 2)<br>';
-            div.innerHTML += '<i style="background: #ffcc00"></i> 注意 (Level 1)<br>';
-            div.innerHTML += '<i style="background: #3388ff"></i> 安全 (Level 0)<br>';
-            return div;
-        };
-        legend.addTo(map);
-    </script>
-</body>
-</html>
+    // 凡例の追加
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function () {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML += '<h4>危険度</h4>';
+        div.innerHTML += '<i style="background: #ff4d4d"></i> 危険 (Level 2)<br>';
+        div.innerHTML += '<i style="background: #ffcc00"></i> 注意 (Level 1)<br>';
+        div.innerHTML += '<i style="background: #3388ff"></i> 安全 (Level 0)<br>';
+        return div;
+    };
+    legend.addTo(map);
+</script>
