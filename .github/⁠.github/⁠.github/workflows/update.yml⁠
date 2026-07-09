@@ -1,0 +1,28 @@
+name: Auto Update AI Data
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Run Update
+        run: |
+          pip install requests
+          python -c "
+import requests
+url = 'https://api.jsonbin.io/v3/b/6a4e0c4fda38895dfe3f4207'
+headers = {'Content-Type': 'application/json', 'X-Master-Key': '$2a$10$2Gloi/T10XfC76Ca6vIQn.hIzvhlkUwSE3n0NtJ4GLl/yeNGL0dWi'}
+data = {'danger_level': 0, 'rainfall': 0, 'temperature': 20, 'wind': 2, 'updated_at': '自動更新中'}
+requests.put(url, json=data, headers=headers)
+"
